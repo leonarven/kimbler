@@ -1,11 +1,9 @@
 {
-  "name": "kimblenet",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC"
+	"name"        : "kimbler",
+	"version"     : "1.0.0",
+	"description" : "",
+	"main"        : "main.js",
+	"scripts"     : {},
+	"author"      : "",
+	"license"     : "copyleft"
 }

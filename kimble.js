@@ -180,7 +180,6 @@ Player.prototype.movePawn = function( pawn, dice ){
 
 	var pos = this.$board.places.indexOf( pawn.place );
 	pos = this.$num*SECTOR_LENGTH, pos == -1 ? "Ei sijaintia" : pos;
-//	console.log( `Vuoroon valittu nappula: '_${+pawn.$num}'`, "$pos:"+pos, "$moved:"+pawn.$moved+"->"+((pawn.$moved||0)+dice));
 
 	this.$game.movePlayerPawn( pawn, dice );
 }
@@ -241,20 +240,19 @@ Board.prototype.setPlacePawn = function( place, pawn ){
 ██   ██ ██ ██      ██ ██████  ███████ ███████
 */
 function Kimble( playerFn ){
-	this.uuid = generateUUID();
-
-	this.players = [];
+	this.uuid    = generateUUID();
 	this.board   = new Board();
 
 	if( !Array.isArray( playerFn )) playerFn = [ playerFn ];
-
 	var lastFn = playerFn[ 0 ];
 	if( !lastFn ) throw new Error("No player fn given!");
-
-	for( var player, i = 0; i < PLAYER_COUNT; i++ ){
+	for( var i = 0; i < PLAYER_COUNT; i++ ){
 		lastFn = playerFn[ i ] || lastFn;
-		this.players.push( new Player( i, this, lastFn ));
-	}
+		if( typeof lastFn == "string" ) lastFn = require("./players/"+ lastFn);
+		playerFn[i] = lastFn;
+	};
+
+	this.players = playerFn.map(( fn, i )=>new Player( i, this, fn));
 }
 Kimble.prototype.movePlayerPawn = function( pawn, dice ){
 	var sight = pawn.getSight();
