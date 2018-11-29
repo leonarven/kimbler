@@ -82,11 +82,7 @@ Pawn.prototype.getSight = function(){
 			}
 		}
 
-		if( this.place.isStart ){
-			cur = this.$player.$startPlace;
-		} else {
-			cur = this.place.$next;
-		}
+		cur = this.place.isStart ? this.$player.$startPlace : this.place.$next;
 
 		if( this.$moved > this.$board.length - DICE_FACES ){
 			if( this.place.isStart||this.place.isEnd ) throw "Kovin lähellä takareunaa ollaan, mutta silti muka lähtöruudussa tai lopussa?!!";
@@ -100,14 +96,7 @@ Pawn.prototype.getSight = function(){
 			var move_a = this.$board.length - this.$moved;
 			var move_b = DICE_FACES - move_a;
 
-
-			if( move_b > ends.length ){
-//				var _cur = this.$player.$startPlace;
-				for( var i = ends.length; i <= move_b; i++ ){
-					ends.push({isEnd:true,pawn:this});
-//					_cur = _cur.$next;
-				}
-			}
+			for( var i = ends.length; i <= move_b; i++ ) ends.push({ isEnd: true, pawn: this });
 
 			for( var i = 0; i < move_a; i++ ){
 				front.push( cur );
@@ -122,7 +111,6 @@ Pawn.prototype.getSight = function(){
 			}
 		}
 	}
-
 
 	return { back, front }
 }
@@ -141,7 +129,7 @@ Pawn.prototype.getSightString = function(){
 ██      ██      ██   ██    ██    ██      ██   ██
 ██      ███████ ██   ██    ██    ███████ ██   ██
 */
-function Player( $num, $game ){
+function Player( $num, $game, playFn ){
 	this.uuid = generateUUID();
 
 	this.pawns  = new Array( PAWNS_PER_PLAYER_COUNT ).fill( null );
@@ -163,6 +151,9 @@ function Player( $num, $game ){
 		pawn.$player = this;
 		pawn.$game   = this.$game;
 	}
+
+	this.playFn = playFn;
+	this.play   = this.playFn.call( this );
 }
 Player.prototype.getPlaces = function( join ){
 	var prev = this.$startPlace;
@@ -170,10 +161,20 @@ Player.prototype.getPlaces = function( join ){
 	for( var i = 1; i < this.$board.length; i++ ) arr.push( prev = prev.$next );
 	return arr;
 }
-Player.prototype.getPawn = function( num ){
-	if( num instanceof Kimble.Pawn ) return num;
-	return this.pawns[ num ];
-}
+Player.prototype.getMovablePawns = function( dice ){
+	return this.pawns.filter(pawn=>{
+		if( pawn.place.isEnd ) return false;
+
+		var sight = pawn.getSight();
+		var front = sight.front[dice];
+
+		// Ei mitään paikalla, ok!
+		if( !front.pawn ) return true;
+
+		// Paikalla oleva nappu on vihun, ok!
+		return front.pawn.$player != this;
+	});
+};
 Player.prototype.movePawn = function( pawn, dice ){
 	if( pawn.place.isEnd ) throw new Error( "Player.movePawn :: Ei voida liikuttaa nappulaa, on jo loppupisteessä" );
 
@@ -239,15 +240,22 @@ Board.prototype.setPlacePawn = function( place, pawn ){
 ██  ██  ██ ██  ██  ██ ██   ██ ██      ██
 ██   ██ ██ ██      ██ ██████  ███████ ███████
 */
-function Kimble(){
+function Kimble( playerFn ){
 	this.uuid = generateUUID();
 
 	this.players = [];
 	this.board   = new Board();
 
-	for( var player, i = 0; i < PLAYER_COUNT; i++ ) this.players.push( new Player( i, this ));
+	if( !Array.isArray( playerFn )) playerFn = [ playerFn ];
+
+	var lastFn = playerFn[ 0 ];
+	if( !lastFn ) throw new Error("No player fn given!");
+
+	for( var player, i = 0; i < PLAYER_COUNT; i++ ){
+		lastFn = playerFn[ i ] || lastFn;
+		this.players.push( new Player( i, this, lastFn ));
+	}
 }
-Kimble.prototype.init = function(){ };
 Kimble.prototype.movePlayerPawn = function( pawn, dice ){
 	var sight = pawn.getSight();
 	if( !sight.front ) throw new Error("Kimble.movePlayerPawn :: no places on front of pawn");
