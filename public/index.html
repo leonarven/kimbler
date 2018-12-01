@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html ng-app="app">
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+	</head>
+	<body>
+		<canvas id="gameBoardCanvas" width="300" height="300"></canvas>
+		<pre>{{ game_json }}</pre>
+		<script src="node_modules/angular/angular.min.js" charset="utf-8"></script>
+		<script type="text/javascript">
+
+			var socket = new WebSocket("ws://"+location.hostname+":8081", "echo-protocol");
+
+			var game = {
+				players: [{
+					starts : [ false, false, false, false ],
+					ends   : [ false, false, false, false ]
+				},{
+					starts : [ false, false, false, false ],
+					ends   : [ false, false, false, false ]
+				},{
+					starts : [ false, false, false, false ],
+					ends   : [ false, false, false, false ]
+				},{
+					starts : [ false, false, false, false ],
+					ends   : [ false, false, false, false ]
+				}],
+				board: [ null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null ]
+			};
+
+			const renderFn = genRenderer( gameBoardCanvas.getContext( "2d" ), gameBoardCanvas.width );
+
+			angular.module("app", [])
+			.run(function($rootScope){
+				$scope = $rootScope;
+				$scope.game = game;
+
+				$scope.start = function(){
+					socket.send(JSON.stringify({'act':'START','players':['slowRandomPlayer','slowRandomPlayer','slowRandomPlayer','slowRandomPlayer']}));
+				};
+				$scope.refresh = function(){
+					renderFn( game );
+				};
+
+				socket.onmessage = function( event, data ){
+					console.debug("socket.onmessage:",  event.data );
+					data = JSON.parse( event.data );
+					switch( data.act ){
+						case "game.players":
+							for( var num in data.players ){
+								game.players[ num ].uuid = data.players[ num ].uuid;
+								game.players[ num ].$num = num;
+							}
+							break;
+						case "game.shift":
+							updateGameStatus_shift( data.shift );
+							$scope.refresh();
+						case "game.state":
+							updateGameStatus_state( data.game );
+							$scope.refresh();
+					}
+				}
+
+				socket.onopen = function(){
+					setTimeout(()=>{
+						socket.send(JSON.stringify({'act':'STOP'}));
+
+						$scope.start();
+					}, 1000);
+				};
+
+				function updateGameStatus_shift( shift ){
+					var iteration  = shift[0];
+					var player_num = shift[1];
+					var dice       = shift[2];
+					var pawn       = shift[3];
+					var pawns      = [ shift[4], shift[5], shift[6], shift[7] ];
+					console.log( "#"+iteration, "Player:"+player_num, "Dice:"+dice );
+					if( !pawn ) return console.log("Ei liikutettu mitään");
+					var player = game.players[ player_num ];
+					for( var i in pawns ){
+						var id = player_num +""+ i;
+
+						if( pawns[i] == "S" )
+							 player.starts[i] = id;
+						else player.starts[i] = false;
+
+						if( pawns[i] == "E" )
+							 player.ends[i] = id;
+						else player.ends[i] = false;
+
+						if( !isNaN( pawns[i] )){
+							var pos = game.board.indexOf( id );
+							if( pos != -1 ) game.board[ pos ] = null;
+							game.board[ pawns[i] ] = id;
+						}
+					}
+				}
+				function updateGameStatus_state( state ){
+					for( var i in state.board ) game.board[ i ] = state.board[ i ];
+
+					for( var i in state.players ){
+						for( var e = 0; e < 4; e++ ){
+							game.players[i].starts[e] = state.players[i].starts[e];
+							game.players[i].ends[e]   = state.players[i].ends[e];
+						}
+					}
+				}
+			});
+
+			function genRenderer( ctx, size ){
+				var fns  = ["fill","stroke"];
+				var clrs = ["#ff0000","#00ff00","#0000ff","#ff00ff"];
+				var arc = function( x, y, p ){
+					ctx.beginPath();
+					ctx.arc( x, y, size / 30, 0, Math.PI * 2 );
+
+					if( p ) ctx.fill((ctx.fillStyle=clrs[ p[ 0 ]])&&undefined);
+					else ctx.stroke();
+				}
+				var PI2 = Math.PI * 2;
+				return function( game ){
+					ctx.clearRect( 0, 0, size, size );
+					ctx.strokeStyle = "#000000";
+					var len = game.board.length-1;
+					for( var angle, i = 0; i < len; i++ ){
+						arc(size / 2 - (size / 3) * Math.cos( angle = i * PI2 / len + Math.PI / len ),
+							size / 2 - (size / 3) * Math.sin( angle ),
+							game.board[ i ]);
+					}
+					var rad_i = size/3 + size/15;
+					var rad_b = size/3 - size/15;
+					for( var p, i = 0; i < 4; i++ ){
+						var angle_i = i * Math.PI / 2;
+						for( var e = 0; e < 4; e++ ){
+							var angle_e = angle_i + e * PI2 / len - 1.5 * PI2 / len;
+							p = game.players[i].starts[e] ? (""+i) : false;
+							arc(size / 2 - rad_i * Math.cos( angle_e ),
+								size / 2 - rad_i * Math.sin( angle_e ), p);
+
+							p = game.players[i].ends[e] ? (""+i) : false;
+							var rad_c = rad_b - e*size/15;
+							arc(size / 2 - rad_c * Math.cos( angle_i ),
+								size / 2 - rad_c * Math.sin( angle_i ), p);
+						}
+					}
+				};
+			};
+		</script>
+	</body>
+</html>

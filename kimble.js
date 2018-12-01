@@ -1,6 +1,3 @@
-const synaptic = require('synaptic');
-const { Neuron, Layer, Network, Trainer, Architect } = synaptic;
-
 const DICE_FACES = 6;
 const PLAYER_COUNT = 4;
 const PAWNS_PER_PLAYER_COUNT = 4;
@@ -47,6 +44,10 @@ Place.prototype.setNext = function( next ){
 Place.prototype.setPawn = function( pawn ){
 	this.pawn = pawn;
 }
+Place.prototype.toPawnString = function(){
+	return this.pawn && `${this.pawn.$player.$num}${this.pawn.$num}`;
+}
+
 /*
 ██████   █████  ██     ██ ███    ██
 ██   ██ ██   ██ ██     ██ ████   ██
@@ -82,32 +83,32 @@ Pawn.prototype.getSight = function(){
 			}
 		}
 
-		cur = this.place.isStart ? this.$player.$startPlace : this.place.$next;
 
 		if( this.$moved > this.$board.length - DICE_FACES ){
 			if( this.place.isStart||this.place.isEnd ) throw "Kovin lähellä takareunaa ollaan, mutta silti muka lähtöruudussa tai lopussa?!!";
 
-			var ends = this.$player.ends.map(v=>v);
-			for( var i = this.$player.ends.length-2; i >= 0; i-- ) ends.push(this.$player.ends[ i ]);
-			// parsitaan pois loppuruuduista ne jotka käytössä
-			ends = ends.filter(v=>!v.pawn);
-
-
 			var move_a = this.$board.length - this.$moved;
 			var move_b = DICE_FACES - move_a;
 
-			for( var i = ends.length; i <= move_b; i++ ) ends.push({ isEnd: true, pawn: this });
-
+			cur = this.place.$next;
 			for( var i = 0; i < move_a; i++ ){
 				front.push( cur );
 				cur = cur.$next;
 			}
-			for( var i = 0; i < move_b; i++ ) front.push( ends[ i ]);
 
+			for( var i = 0; i < move_b; i++ ){
+				front.push( this.$player.ends[ i ] || { isEnd: true, pawn: this });
+			}
 		} else {
-			for( var i = 0; i < DICE_FACES; i++ ){
-				front.push( cur );
-				cur = cur.$next;
+			if( this.place.isStart ){
+				for( var i = 1; i < DICE_FACES; i++ ) front.push({ });
+				front.push( this.$player.$startPlace );
+			} else {
+				cur = this.place.$next;
+				for( var i = 0; i < DICE_FACES; i++ ){
+					front.push( cur );
+					cur = cur.$next;
+				}
 			}
 		}
 	}
@@ -115,7 +116,7 @@ Pawn.prototype.getSight = function(){
 	return { back, front }
 }
 Pawn.prototype.toString = function(){
-	return this.uuid;
+	return this.$player.$num+""+this.$num;
 }
 Pawn.prototype.getSightString = function(){
 	return "|"+this.getSight().front.map(v=>(
@@ -164,6 +165,7 @@ Player.prototype.getPlaces = function( join ){
 Player.prototype.getMovablePawns = function( dice ){
 	return this.pawns.filter(pawn=>{
 		if( pawn.place.isEnd ) return false;
+		if( pawn.place.isStart && dice != (DICE_FACES-1) ) return false;
 
 		var sight = pawn.getSight();
 		var front = sight.front[dice];
@@ -178,6 +180,7 @@ Player.prototype.getMovablePawns = function( dice ){
 Player.prototype.movePawn = function( pawn, dice ){
 	if( pawn.place.isEnd ) throw new Error( "Player.movePawn :: Ei voida liikuttaa nappulaa, on jo loppupisteessä" );
 
+	/** @TODO  wtf tää tekee tässä? */
 	var pos = this.$board.places.indexOf( pawn.place );
 	pos = this.$num*SECTOR_LENGTH, pos == -1 ? "Ei sijaintia" : pos;
 

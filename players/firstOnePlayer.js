@@ -11,6 +11,6 @@ function randomPlayer(){
 		}
 	}
 	function select( pawns ){
-		return pawns[ parseInt( Math.random() * pawns.length )];
+		return pawns[ 0 ];
 	}
 }
